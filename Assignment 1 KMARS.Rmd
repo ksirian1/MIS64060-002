@@ -1,0 +1,51 @@
+---
+title: "Assignment 1"
+author: "Kerrie Mars"
+date: "2022-09-11"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---{r}
+collisions=read.csv("Collisions.csv")
+summary(collisions)
+summary(collisions$INJURIES)
+summary(collisions$SEVERITYDESC)
+summary(collisions$SEVERITYCODE)
+table(collisions$SEVERITYDESC)
+table(collisions$SEVERITYCODE)
+
+collisions2=read.csv("Collisions2.csv")
+summary(collisions2)
+summary(collisions2$COLLISIONTYPENUM)
+summary(collisions2$COLLISIONTYPE)
+table(collisions2$COLLISIONTYPENUM)
+table(collisions2$COLLISIONTYPE)
+
+attach(collisions2)
+require(ggplot2)
+require(ggthemes)
+
+ggplot(data=collisions2, aes(x=PERSONCOUNT))+geom_bar(stat="count", position=position_dodge())+facet_grid(INJURIES)
+
+ggplot(data=collisions2, aes(x=INJURIES))+geom_bar(stat="count", , position=position_dodge())+facet_grid(PERSONCOUNT ~ .)
+
+head(collisions2)
+
+##scatter plot with axes names
+plot(collisions2$PERSONCOUNT ~ collisions2$INJURIES, xlab = "TOTAL PEOPLE", ylab="TOTAL INJURED")
+
+##alternative plot with ggplot
+library(ggplot2)
+ggplot2(collisions2) + geom_point(aes(x=PERSONCOUNT, y=INJURIES), colour="navy", alpha=0.7)
+
+ggplot(data=collisions2, aes(x=PERSONCOUNT))+geom_bar()
+
+ggplot(data=collisions2, aes(x=PERSONCOUNT, y=INJURIES)) + geom_bar(stat="summary", fun=median)
+
+ggplot(data=collisions2, aes(x=PERSONCOUNT, y=INJURIES)) + geom_bar(stat="summary", fun=mean)
+
+---
