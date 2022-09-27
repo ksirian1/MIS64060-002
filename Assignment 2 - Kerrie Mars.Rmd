@@ -1,0 +1,191 @@
+---
+title: "Assignment 2  Kerrie Mars"
+author: "Kerrie Mars"
+date: "2022-09-26"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+#clear existing data in Environment
+rm(list=ls())
+#load data
+bank.df <- read.csv("UniversalBank.csv", header = TRUE)
+#find dimension of data frame
+dim(bank.df)
+
+#open libraries
+library(ISLR)
+library(forecast) #for evaluating performance
+library(class) #for allowing a numerical output variable
+library(psych)  #for creating dummies
+library(caret)  #for data partition, normalize data
+library(FNN)    #for Performing knn classification
+
+#show all the data in a new tab
+View(bank.df)
+
+#find summary statistics for each column
+summary(bank.df)
+
+#view structure of r data
+str(bank.df)
+
+#print a list of variables to the screen
+names(bank.df)
+t(t(names(bank.df)))
+
+## REMOVE COLUMNS ID & ZIP CODE FROM DATASET
+#eliminate variables ID & Zip Code from dataset  
+df=subset(bank.df, select=-c(ID, ZIP.Code))
+
+## TRANSFORM CATEGORICAL PREDICTOR WITH MORE THAN 2 CATEGORIES INTO A  DUMMY VARIABLE
+
+dumedu <- as.data.frame(dummy.code(bank.df$Education))
+
+df_without_education <- subset(df, select=-c(Education)) #eliminating education variable
+bank_data <- cbind(df_without_education, dumedu) # combined main dataset
+head(bank_data)
+
+bank_data$Personal.Loan = as.factor(bank_data$Personal.Loan)
+bank_data$CCAvg = as.integer(bank_data$CCAvg)
+
+#Partitioning the data into Training(60%) and Validation(40%)
+#library(caret)
+set.seed(1) #set seed for reproducting the partition
+
+#randomly sample 60% of the row IDs for training; the remaining 40% serve as
+#validation, you can use any number in the parenthesis you like
+train_rows <- sample(rownames(bank_data), dim(bank.df)[1]*0.6)
+train_data      = bank_data[train_rows,]  #3001 observations
+valid_rows <- setdiff(rownames(bank_data), train_rows)
+valid_data <- bank_data[valid_rows, ]
+
+#new customer
+new.df <- data.frame(Age = as.integer(40), Experience = as.integer(10),
+                     Income = as.integer(84), Family = as.integer(2), CCAvg = as.integer(2),
+                     Education1 =  as.integer(0), Education2 =  as.integer(1), Education3 =  as.integer(0),
+                     Mortgage = as.integer(0), Securities.Account = as.integer(0), CD.Account = as.integer(0),
+                     Online = as.integer(1),  Credit.Card = as.integer(1))
+new.df
+
+#initialize normalized training, validation data, complete data frames to originals
+train.norm.df <- train_data
+valid.norm.df <- valid_data
+bank.norm.df <- bank_data
+maindata.norm.df <- bank_data
+
+#use PreProcess() from the caret package to normalize columns
+norm.values <- preProcess(train_data[, -7], method=c("center", "scale"))
+train.norm.df[, -7]  <-predict(norm.values, train_data[, -7])
+valid.norm.df[, -7]  <-predict(norm.values, valid_data[, -7])
+bank.norm.df[, -7] <-predict(norm.values, bank_data[, -7])
+
+#use knn() to compute knn
+knn.1 <- knn(train = train.norm.df[, -7], test = bank.norm.df[, -7], cl = train.norm.df[, 7], k=5, prob=TRUE)
+knn.attributes <- attributes(knn.1)
+knn.attributes[1]
+
+knn.attributes[3]
+
+row.names(train_data)[attr(knn.1, "knn.1.index")]
+
+##Measure accuracy of different k values
+#initialize a data frame with two columns: k and accuracy
+accuracy.df <- data.frame(k = seq(1, 14, 1), accuracy = rep(0, 14))
+
+#compute knn for different k on validation
+for(i in 1:14) {
+  knn.pred <- knn(train.norm.df[, -7], valid.norm.df[, -7], cl = train.norm.df[, 7], k = i)
+  accuracy.df[i, 2] <- confusionMatrix(knn.pred, as.factor(valid.norm.df[,7]))$overall[1]
+}
+accuracy.df
+
+##Since maximum accuracy is 0.9640 on line 3, the best k is 3
+#Question 2: The value of k that balances between overfitting and ignoring the predictor information is k = 3
+#since k = 3 provides the maximum accuracy in k-NN above
+
+#Question 3: The confusion matrix for the validation data that results from using the best k is below, k=3:
+##show the confusion matrix for the validation data that results from using the best k
+knn.pred.new <- knn(train = train.norm.df[, -7], test = valid.norm.df[, -7], cl = train.norm.df[, 7], k=3, prob=TRUE)
+confusionMatrix(knn.pred.new, as.factor(valid.norm.df[, 7]))
+
+#Question 4: Consider followng customer and classify using the best k
+newcust = data.frame(Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Education_1 = 0, Education_2 = 1, Education_3 = 0, Mortgage = 0, Securities.Account = 0, CD.Account = 0, Online = 1, CreditCard = 1)
+knn2 <- knn(train = train.norm.df[, -7], test = newcust, cl = train.norm.df[,7], k=3, prob=TRUE)
+knn2
+
+#Classify customer using the best k (perform k-NN classification on test data)
+#repartition the data into training, validation and test set (50%, 30%, 20%) and apply k-NN method with k chosen above
+#set seed
+set.seed(1)
+
+prediction <-knn(train = train.norm.df[, -7], test = valid.norm.df[, -7], cl = train.norm.df[, 7], k = 3, prob=TRUE)
+actual = valid.norm.df$Personal.Loan
+prediction_prob = attr(prediction, "prob")
+
+##ANSWER 3: The best k value is k=3
+table(prediction,actual)
+
+prediction_test <- knn(train = maindata.norm.df[, -7], test = newcust, cl = maindata.norm.df[, 7], k=1, prob=TRUE)
+head(prediction_test)
+
+##ANSWER 4: k-NN model predicts that new customer will accept loan offer
+
+#Question 5:  Repartition the data, this time into training, validation and test sets (50%, 30%, 20%)
+#Apply  k-NN method with the k chosen above
+#Compare confusion matrix of the test set with that of the training and validation sets
+#Comment on the differences and their reason
+
+library(dplyr)
+set.seed(1)
+
+#randomly sample 50% of the row IDs for training
+train.rows <- sample(rownames(bank_data), dim(bank_data)[1]*0.5)
+
+#sample 30% of the row IDs into the validation set, drawing only from records not already in training set
+#use setdiff() to find records not already in the training set
+valid.rows <- sample(setdiff(rownames(bank_data), train.rows), dim(bank_data)[1]*0.3)
+
+#assign remaining 20% row IDs to serve as test
+test.rows = setdiff(rownames(bank_data), union(train.rows, valid.rows))
+
+#create the 3 data frames by collecting all columns from appropriate rows
+train.data <- bank_data[train.rows, ]
+valid.data <- bank_data[valid.rows, ]
+test.data <- bank_data[test.rows, ]
+
+#normalize datasets
+#use PreProcess() from the caret package to normalize columns
+norm.values <- preProcess(train.data[, -7], method=c("center", "scale"))
+train.data[, -7]  <-predict(norm.values, train.data[, -7])
+valid.data[, -7]  <-predict(norm.values, valid.data[, -7])
+test.data[, -7] <-predict(norm.values, test.data[, -7])
+head(test.data)
+
+test.data1 <- knn(train = train.data[, -7], test = test.data[, -7], cl = train.data[, 7], k=3, prob=TRUE)
+valid.data1 <- knn(train = train.data[, -7], test = valid.data[, -7], cl = train.data[, 7], k=3, prob=TRUE)
+train.data1 <- knn(train = train.data[, -7], test = train.data[, -7], cl = train.data[, 7], k=3, prob=TRUE)
+
+confusionMatrix(test.data1, test.data[, 7])
+
+confusionMatrix(valid.data1, valid.data[, 7])
+
+confusionMatrix(train.data1, train.data[, 7])
+
+#ANSWER 5: 
+#Test Accuracy 0.959
+#Valid Accuracy 0.9627
+#Train Accuracy 0.9748
+#Training Dataset has the highest acccuracy, which makes sense because we drew the most data into the training set at 50%
+```
+
