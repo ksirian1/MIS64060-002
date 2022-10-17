@@ -1,0 +1,145 @@
+---
+title: "Assignment 3 - Kerrie Mars"
+author: "Kerrie Mars"
+date: "2022-10-15"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("/Users/Kyle Mars/Desktop/Kerrie/Machine Learning")
+#clear existing data in Environment
+rm(list=ls())
+#load data
+bank <- read.csv("UniversalBank.csv", header = TRUE)
+#find dimension of data frame
+dim(bank)
+
+#open libraries
+library(ISLR)
+library(forecast) #for evaluating performance
+library(class) #for allowing a numerical output variable
+library(psych)  #for creating dummies
+library(caret)  #for data partition, normalize data
+library(FNN)    #for Performing knn classification
+library(e1071)  #for performing Naive  Bayes
+library(reshape) #for creating pivot tables
+library(reshape2) #for cast function
+library(MASS)
+library(gmodels)
+
+summary(bank)
+
+#change numerical variables to categorical first
+bank$Personal.Loan = as.factor(bank$Personal.Loan)
+bank$Online = as.factor(bank$Online)
+bank$CreditCard = as.factor(bank$CreditCard)
+
+#Create training and validation sets
+#Partitioning the data into Training(60%) and Validation(40%)
+#set seed for reproducting the partition
+set.seed(1) 
+
+train.index <- sample(rownames(bank), dim(bank)[1]*0.6)
+train.df <- bank[train.index, ]
+valid.index <- setdiff(rownames(bank), train.index)
+valid.df <- bank[valid.index, ]
+train <- bank[train.index, ]
+valid <- bank[train.index, ]
+
+#A - Create a pivot table for the training data with Online as a column variable, CC as a row 
+#variable, and Loan as a secondary row variable. 
+
+#use melt() to stack a set of columns into a single column of data
+melted.bank <- melt(train.df, id=c("CreditCard", "Personal.Loan"), variable = "Online")
+#use cast() to reshape data and generate pivot table
+cast.bank <- dcast(melted.bank, CreditCard + Personal.Loan ~ Online)
+cast.bank[, c(1:2,14)]
+
+#B - Consider the task of classifying a customer who owns a bank credit card and is actively using 
+#online banking services. Looking at the pivot table, what is the probability that this customer 
+#will accept the loan offer?
+#NOTE: [This is the probability of loan acceptance (Loan = 1) conditional on 
+#having a bank credit card (CC = 1) and being an active user of online banking services (Online = 1)].
+x = (77/3000)
+Answer = x*100 #express as a percentage
+Answer
+#ANSWER: The probability of Personal.Loan = 1 and CreditCard = 1 and an active user of Online = 77/3000
+#in the training data which is 2.6%.
+
+#C - Create two separate pivot tables for the training data. 
+#One will have Loan (rows) as a function of Online (columns)
+#The other will have Loan (rows) as a function of CC.
+
+melted.bank2 <- melt(train.df, id = c("Personal.Loan"), variable = "Online")
+melted.bank3 <- melt(train.df, id = c("CreditCard"), variable = "Online")
+
+cast.bank2 <- cast(melted.bank2, Personal.Loan ~ Online)
+cast.bank3 <- cast(melted.bank3, CreditCard ~ Online)
+
+LoanOnline <- cast.bank2[, c(1, 13)]
+LoanCC <- cast.bank3[, c(1, 14)]
+
+#D - Compute the following quantities [P(A | B) means "the probability of A given B"]
+#i. P(CC = 1 | Loan = 1)(the proportion of credit card holders among the loan acceptors)
+table(train.df[,c(14,10)])
+77/(198+77)
+
+#ii. P(Online = 1 | Loan = 1)
+table(train.df[,c(13,10)])
+166/(166+109)
+
+#iii. P(Loan = 1)(the proportion of loan acceptors)
+table(train.df[,c(10)])
+275/(2725+275)
+
+#iv. P(CC = 1 | Loan = 0)
+table(train.df[,c(14,10)])
+801/(1924+801)
+
+#v. P(Online = 1 | Loan = 0)
+table(train.df[,c(13,10)])
+1588/(1137+1588)
+
+#vi. P(Loan = 0)
+table(train.df[,c(10)])
+2725/(2725+275)
+
+#E - Use the quantities computed above to compute the naive Bayes probability
+#P(Loan = 1 | CC = 1, Online = 1)
+(.28*.60363*.09166)/((.28*.60363*.09166)+(.2939*.5827*.9083))
+
+#F - Compare this value with the one obtained from the pivot table in (B).
+#Which is a more accurate estimate?
+
+loan.nb <- naiveBayes(Personal.Loan ~ ., data = train.df)
+loan.nb
+
+#training
+
+pred.class <- predict(loan.nb, newdata = train.df)
+confusionMatrix(pred.class, train.df$Personal.Loan)
+
+#validation
+
+pred.class <- predict(loan.nb, newdata = valid.df)
+confusionMatrix(pred.class, valid.df$Personal.Loan)
+#The Naive Bayes is a more accurate estimate
+
+#Which of the entries in this table are needed for computing
+#P(Loan = 1 | CC = 1, Online = 1)?
+#Run naive Bayes on the data. Examine the model output on training data, 
+#and find the entry that corresponds to P(Loan = 1 | CC = 1, Online = 1).
+#Compare this to the number you obtained in (E).
+
+naive.train <- train.df[,c(10, 13:14)]
+naive.test <- valid.df[,c(10,13:14)]
+naivebayes <- naiveBayes(Personal.Loan~., data = naive.train)
+naivebayes
+
+#The naive bayes is giving us a similar number (rounding) to our method above which is .09.
+```
+
