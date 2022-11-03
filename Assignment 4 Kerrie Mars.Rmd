@@ -1,0 +1,143 @@
+---
+title: "Assignment 4"
+author: "Kerrie Mars"
+date: "2022-11-03"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+setwd("/Users/Kyle Mars/Desktop/Kerrie/Machine Learning")
+
+library("tidyverse") #data manipulation
+library("factoextra") #clustering algorithms and visualization
+library("ISLR")
+library("flexclust")
+
+#clear existing data in Environment
+rm(list=ls())
+
+set.seed(1)
+
+#open dataset
+pharmaceuticals <- read.csv("Pharmaceuticals.csv", header=TRUE)
+head(pharmaceuticals)
+
+#remove non-numerical columns from the dataset
+pharmaceuticals <- pharmaceuticals[, -c(1,2,12,13,14)]
+#scale the data frame (z-score) / normalize data
+pharmaceuticals <- scale(pharmaceuticals)
+
+summary(pharmaceuticals)
+head(pharmaceuticals)
+pharmaceuticals
+
+distance <- dist(pharmaceuticals, method = "euclidean")
+
+fviz_dist(distance)
+
+#in hclust() set argument method = to ward.D
+hc1  <- hclust(distance, method = "ward.D") # cluster analysis ward is most robust method
+plot(hc1, hang = -1, ann = FALSE)
+#based on the above plot, there should be 4 clusters
+
+hc2 <- hclust(distance, method = "single")
+plot(hc2, hang = -1, ann = FALSE)
+
+hc3 <- hclust(distance, method = "average")
+plot(hc3, hang = -1, ann = FALSE)
+
+rect.hclust(hc1, k=4)
+#best option above
+
+#run kmeans algorithm using an inital value of k=4 to cluster the companies
+k4 <- kmeans(pharmaceuticals, centers = 4, nstart = 25) # k = 4, number of restarts = 25
+k4$centers #centroids / output the centers
+k4$size #size of each cluster
+k4$cluster[15] #cluster of 15th observations in data set as an example
+fviz_cluster(k4, data = pharmaceuticals) #visualize the 4 clusters
+
+#Cluster using Manhattan distance
+#kmeans clustering, using Manhattan distance
+k4 = kcca(pharmaceuticals, k=4, kccaFamily("kmedians"))
+k4
+
+#Cluster 1 contains rows 11, 17, 13, 15
+#cluster 2 contains rows 21, 7, 10, 4, 16, 19, 3, 1
+#Cluster 3 contains rows 5, 20, 12, 14, 9, 8
+#Cluster 4 contains rows 18, 2, 6
+
+#apply the predict() function
+clusters_index <- predict(k4)
+dist(k4@centers)
+image(k4)
+points(pharmaceuticals, col=clusters_index, pch=19, cex=0.3)
+
+#compute Silhouette method
+fviz_nbclust(pharmaceuticals, kmeans, method = "silhouette")
+#this option shows that the optimal number of clusters is 5
+
+#determine k
+#use an "elbow chart"
+set.seed(1)
+
+pharmaceuticals <- pharmaceuticals[, -c(1,2,12,13,14)]
+#scale the data frame
+pharmaceuticals <- scale(pharmaceuticals)
+fviz_nbclust(pharmaceuticals, kmeans, method = "wss")
+#the turning point of the data here is when k=5 where the curve is changing direction to more horizontal
+
+wss <- (nrow(pharmaceuticals)-1)*sum(apply(pharmaceuticals,2,var))
+wss
+
+for(i in 2:15) wss[i] <- sum(kmeans(pharmaceuticals, centers=i)$withinss)
+wss
+plot(1:15, wss, type="b", xlab="Number of Clusters", ylab="Within groups sum of squares")
+#this variation shows that the number of clusters should be 5 as is the initial turning point on the graph
+
+fit <- kmeans(pharmaceuticals, 4)
+aggregate(pharmaceuticals, by=list(fit$cluster), FUN=mean)
+
+#Cluster 2 has the highest PE_ratio, lowest is cluster 3
+#Cluster 1 has the highest ROE, lowest is cluster 2
+#Cluster 1 has the highest ROA, lowest is cluster 2
+#Cluster 4 has the highest Asset_Turnover, lowest is cluster 2
+#Cluster 3 has the highest leverage, lowest is cluster 1
+#Cluster 3 has the highest Rev_Growth, lowest is cluster 4
+#Cluster 1 has the highest Net_Profit_Margin, lowest is cluster 2
+
+pharmaceuticals1 <- data.frame(pharmaceuticals, fit$cluster)
+pharmaceuticals1
+
+library(cluster)
+clusplot(pharmaceuticals, fit$cluster, color=TRUE, shade=TRUE, labels=2, lines=0)
+#this visual also displays 4 clusters
+
+wssplot <- function(pharmaceuticals)
+
+#Our data shows that the optimal number of clusters is 4 
+#graph displays two major groupings, and 4 minor groupings or clusters of pharmaceutical companies 
+#Additionally the average height of these clusters is 4 or 5 on the graph
+#goal is to use the minimum height that still keeps the clusters meaningful more dissimilarity when the value is larger than 5
+
+#cluster 1 is only US pharmaceuticals
+#cluster 2 has the most Holds
+#cluster 3 is the only one with non NYSE
+#cluster 4 contains a mix of locations
+#overall, there is really not a pattern with the non numerical values in 
+#cluster formation
+
+#Cluster 1 Highest ROE
+#Cluster 2 Lowest on most variables
+#Cluster 3 Highest Leverage
+#Cluster 4 Middle on most variables
+
+summary(pharmaceuticals)
+```
+
