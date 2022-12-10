@@ -1,0 +1,245 @@
+---
+title: "Final Exam - Kerrie Mars"
+author: "Kerrie Mars"
+date: "2022-12-08"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("/Users/Kyle Mars/Desktop/Kerrie/Machine Learning")
+
+library("tidyverse") #data manipulation
+library("factoextra") #clustering algorithms and visualization
+library("ISLR")
+library("flexclust")
+library("scales")
+library("ggplot2")
+library("stats")
+library("cluster") # clustering algorithms
+library("fpc")
+
+#clear existing data in Environment
+rm(list=ls())
+
+set.seed(1)
+
+#open dataset
+coffee <- read.csv("starbucks_drinks.csv", header=TRUE)
+head(coffee)
+
+coffee1 <- coffee
+coffee1[coffee1 == ""] <- NA
+
+#remove non-numerical columns from the dataset
+coffee1 <- coffee1[, -c(1, 2, 3)]
+#examine the dataset
+head(coffee1)
+tail(coffee1)
+summary(coffee1)
+str(coffee1)
+
+#remove rows with varying caffeine content
+coffee1 <- subset(coffee1, Caffeine..mg.!="varies" & Caffeine..mg.!="Varies")
+
+#replace all blanks with 0
+coffee1 <- replace(coffee1, coffee1$Caffeine..mg.==" ", 0)
+coffee1[coffee1 == ' '] <- '0'
+
+#convert percentages to numeric
+coffee1$Total.Fat..g. = as.numeric(coffee1$Total.Fat..g.)
+coffee1$Vitamin.A....DV. = as.numeric(sub("%", "", coffee1$Vitamin.A....DV.))
+coffee1$Vitamin.C....DV. = as.numeric(sub("%", "", coffee1$Vitamin.C....DV.))
+coffee1$Calcium....DV. = as.numeric(sub("%", "", coffee1$Calcium....DV.))
+coffee1$Iron....DV. = as.numeric(sub("%", "", coffee1$Iron....DV.))
+coffee1$Caffeine..mg. = as.numeric(coffee1$Caffeine..mg.)
+
+#remove NA (missing) values
+coffee1 <- na.omit(coffee1)
+
+#convert to row names
+rownames(coffee1) <- coffee1$name
+coffee1$name  = NULL
+
+#scale/standardize the data
+coffee_norm <- scale(coffee1)
+
+#re-examine the scaled data
+head(coffee_norm)
+tail(coffee_norm)
+summary(coffee_norm)
+str(coffee_norm)
+
+#dissimilarity matrix/ euclidean distance measure
+d <- dist(coffee_norm, method = "euclidean")
+
+#Hierarchical clustering using Complete Linkage
+hc1 <- hclust(d, method = "complete")
+
+#ward methods
+hc_fit <- hclust(d, method = "ward.D")
+hc_ward <- hclust(d, method = "ward.D2") 
+
+#plot the obtained dendrograms for hierarchical clustering
+plot(hc1, cex = 0.6, hang = -1)
+rect.hclust(hc1, k = 5, border = "blue")
+#choose 5 clusters when using complete linkage
+
+plot(hc_fit, cex = 0.6, hang = -1)
+rect.hclust(hc_fit, k = 2, border = "green")
+
+plot(hc_ward, cex = 0.6, hang = -1)
+rect.hclust(hc_ward, k = 2, border = "red")
+#choose 2 clusters to best break up the data groupings with ward
+
+#calculate gap statistic for each number of clusters (up to 10 clusters) normalized data
+gap_stat <- clusGap(coffee_norm, FUN = hcut, nstart = 25, K.max = 10, B = 50)
+
+#produce plot of clusters vs. gap statistic
+fviz_gap_stat(gap_stat)
+#optimal number of clusters is 10
+
+#calculate gap statistic for each number of clusters (up to 10 clusters) non-normalized data
+gap_stat <- clusGap(coffee1, FUN = hcut, nstart = 25, K.max = 10, B = 50)
+
+#produce plot of clusters vs. gap statistic
+fviz_gap_stat(gap_stat)
+#optimal number of clusters is 2
+
+#compute with agnes and with different linkage methods
+hc_single <- agnes(coffee_norm, method = "single")
+hc_complete <- agnes(coffee_norm, method = "complete")
+hc_average <- agnes(coffee_norm, method = "average")
+
+#compare Agglomerative coefficients
+print(hc_single$ac)
+print(hc_complete$ac)
+print(hc_average$ac)
+## the best method is "complete" because the Agglomerative coefficient is the closest to 1
+## the second choice would be "average"
+
+#plot the obtained dendrograms for hierarchical clustering with 10 clusters
+plot(hc1, cex = 0.6, hang = -1, main = "Starbucks Coffee Nutrition")
+rect.hclust(hc1, k = 10, border = 1:10)
+
+#plot
+plot(hc_single)
+plot(hc_complete)
+plot(hc_average)
+plot(hc_ward)
+
+pltree(hc_complete, cex = 0.6, hang = -1, main = "Dendrogram of agnes")
+
+#define linkage methods
+m <- c( "average", "single", "complete", "ward")
+names(m) <- c( "average", "single", "complete", "ward")
+
+#function to compute agglomerative coefficient
+ac <- function(x) {agnes(coffee1, method = x)$ac}
+
+#calculate agglomerative coefficient for each clustering linkage method
+sapply(m, ac)
+
+##Ward method outputs a 0.986 agglomerative coefficient - best method
+##complete outputs a 0.957, so that is the next best option
+##average is 0.91
+##worst method is single, because the agglomerative cofficient is furthest from 1
+
+df <- coffee_norm
+d <- dist(df, method = "euclidean")
+
+#compute divisive hierarchical clustering
+hc_complete <- hclust(d, method = "complete")
+
+#plot dendrogram
+plot(hc_complete, cex = 0.6, hang = -1)
+rect.hclust(hc_complete, k = 8, border = 1:8) #assuming 8 clusters based on height cutoff
+
+#cluster the data
+set.seed(1)
+
+#run kmeans algorithm using initial value of k=2 to cluster coffee drinks with normalized data
+k2 <- kmeans(coffee_norm, centers = 2, nstart = 25) # k=2, number of restarts=25
+k2$centers #centroids/output the centers
+k2$size #size of each cluster
+k2$cluster[15] #cluster of 15th observation in data set as example
+str(k2)
+fviz_cluster(k2, data = coffee_norm) #visualize 2 clusters
+##2 clusters provides no overlapping
+
+#wss method
+set.seed(1)
+fviz_nbclust(coffee_norm, kmeans, method = "wss")
+#this method shows that number of clusters should be 2, k = 2 where the curve changes direction
+
+wss <- 0 #fit kmeans model
+for(i in 1:15) wss[i] <- sum(kmeans(coffee_norm, centers = i)$withinss)
+wss
+plot(1:15, wss, type = "b", xlab="Number of Clusters", ylab="Within groups sum of squares")
+fviz_nbclust(coffee_norm, kmeans, method = "wss")
+
+#choose k = 2
+k2 <- kmeans(coffee_norm, centers = 2)
+k2clust <- k2$cluster
+#store in new data frame
+coffee_clust <- as.data.frame(cbind(k2$cluster, coffee_norm))
+head(coffee_clust)
+
+#analyze clusters & stability
+hclust_stability = clusterboot(coffee_norm, clustermethod=hclustCBI, method="ward.D2", k=2, count = FALSE)
+hclust_stability
+clusters = hclust_stability$results$partition
+
+#stablility
+
+#cluster analysis: single vs. complete
+d <- dist(coffee_norm, method = "euclidean")
+hc_single <- hclust(d, method = "single")
+plot(hc_single, hang = -1, ann = FALSE)
+#single is not a good method based on the graph
+
+hc_complete <- hclust(d, method = "complete")
+plot(hc_complete, hang = -1, ann = FALSE)
+
+#remove around 10% (5% from head, 5% tail data) to check cluster stability
+dim(coffee_norm)
+
+#the graphs above depict that the best number of clusters is k = 10
+#even though only a portion of the data was used in these examples
+
+#The height of the cut to the dendrogram controls the number of clusters obtained. 
+#It plays the same role as the k in k-means clustering.
+#The function cutree() (one of the options) can be used and it returns a vector 
+#containing the cluster number of each observation.
+
+single <- cutree(hc_single, k = 10)
+single
+complete <- cutree(hc_complete, k = 10)
+complete
+
+#In order to adequately understand the coffee data, we would not want to normalize the data because that would skew the actual values of the categories.
+#Instead, we would want to cluster the data by grouping together coffee's with similar nutritional value or caffeine content
+
+#create new data set for example
+sbuxcoffee <- coffee1
+
+fit <- kmeans(sbuxcoffee, 10)
+aggregate(sbuxcoffee, by=list(fit$cluster), FUN=mean)
+#Cluster 6 has the highest caffeine in mg, cluster 1 has the lowest
+#Cluster 6 has the lowest calories, cluster 9 has the highest
+#Cluster 6 has the lowest fat, cluster 9 has the highest
+#Cluster 6 has the lowest trans fat, cluster 9 has the highest
+#Cluster 6 has the lowest saturated fat, cluster 2 has the highest
+#Cluster 6 has the lowest sodium, cluster 2 has the highest
+#Cluster 6 has the lowest carbohydrates, cluster 9 has the highest
+#Cluster 6 has the lowest cholesterol, cluster 9 has the highest
+#Cluster 1 has the highest fiber, cluster 6 has the lowest
+#Cluster 6 has the lowest sugar, cluster 9 has the highest
+#Cluster 1 has the highest protein, cluster 6 has the lowest
+
+#The summary above demonstrates that the coffee drinks in cluster 6 are the best choice overall because they have the highest caffeine content and best overall nutritional value.
+#The most unhealthy coffee choices are those in clusters 2 and 9 which have the worst overall nutritional value
+```
